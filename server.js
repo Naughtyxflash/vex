@@ -80,7 +80,7 @@ app.post("/attack", async (req, res) => {
 
 // Start server
 const server = app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Servers running on port ${PORT}`);
 });
 
 // Graceful shutdown
