@@ -13,7 +13,7 @@ app.use(express.json());
 
 // ENV
 const API_KEY = process.env.API_KEY;
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 8080;
 
 if (!PORT) {
   console.error("FATAL: PORT not provided");
