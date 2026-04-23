@@ -9,7 +9,7 @@ app.use(express.json());
 
 // 🔐 put your real key
 const API_KEY = process.env.API_KEY;
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 5000;
 
 app.post("/attack", async (req, res) => {
   try {
