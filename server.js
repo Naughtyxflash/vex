@@ -12,7 +12,7 @@ app.use(express.json());
 
 // ENV
 const API_KEY = process.env.API_KEY;
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 3000;
 
 console.log("API_KEY:", API_KEY ? "Loaded ✅" : "Missing ❌");
 console.log("Binding PORT:", PORT);
