@@ -48,46 +48,45 @@ app.get("/test", (req, res) => {
   });
 });
 
+// ================= GLOBAL STATS =================
+
+let totalRequests = 0;
+
+// request counter middleware
+app.use((req, res, next) => {
+  totalRequests++;
+  next();
+});
+
 // ================= STATUS ROUTE =================
-app.get("/status", async (req, res) => {
-  try {
 
-    if (!STATUS_API) {
-      return res.status(500).json({
-        success: false,
-        error: "STATUS_API missing"
-      });
-    }
+app.get("/status", (req, res) => {
 
-    const response = await axios.get(
-      STATUS_API,
-      {
-        timeout: 10000
-      }
-    );
+  const uptimeSeconds = process.uptime();
 
-     console.log("STATUS RESPONSE:", response.data);
+  return res.json({
 
-    return res.json({
-      success: true,
-      data: response.data
-    });
+    success: true,
 
-  } catch (err) {
+    server: "ONLINE ✅",
 
-    console.error(
-      "STATUS ERROR:",
-      err?.response?.data || err.message
-    );
+    uptime: `${Math.floor(uptimeSeconds)} sec`,
 
-    return res.status(500).json({
-      success: false,
-      error:
-        err?.response?.data ||
-        err.message ||
-        "Failed to fetch status"
-    });
-  }
+    totalRequests,
+
+    memory: process.memoryUsage(),
+
+    services: {
+      api: true,
+      attackRoute: true,
+      healthRoute: true,
+      testRoute: true
+    },
+
+    timestamp: new Date().toISOString()
+
+  });
+
 });
 
 
